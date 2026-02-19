@@ -350,17 +350,25 @@ function App() {
  const [loading, setLoading] = useState(true);
 useEffect(() => {
   async function loadUsers() {
-    const data = await kv.get("timeclock-users");
-    if (Array.isArray(data)) {
-      setUsers(data);
-    } else {
+    try {
+      const res = await fetch("/api/users/get");
+      const data = await res.json();
+
+      if (Array.isArray(data)) {
+        setUsers(data);
+      } else {
+        setUsers([]);
+      }
+    } catch (err) {
+      console.error("Load error:", err);
       setUsers([]);
     }
-    setLoading(false);
+
+    setLoading(false); // This will ALWAYS run now
   }
+
   loadUsers();
 }, []);
-
   // ⭐ Ensure Admin user exists
   useEffect(() => {
   if (loading) return;
