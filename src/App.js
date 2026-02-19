@@ -346,29 +346,36 @@ const EditPunchesPage = ({
   );
 };
 function App() {
+  console.log("App is rendering");
  const [users, setUsers] = useState([]);
  const [loading, setLoading] = useState(true);
 useEffect(() => {
   async function loadUsers() {
-    try {
-      const res = await fetch("/api/users/get");
-      const data = await res.json();
-
-      if (Array.isArray(data)) {
-        setUsers(data);
-      } else {
-        setUsers([]);
-      }
-    } catch (err) {
-      console.error("Load error:", err);
+    const data = await kv.get("timeclock-users");
+    if (Array.isArray(data)) {
+      setUsers(data);
+    } else {
       setUsers([]);
     }
-
-    setLoading(false); // This will ALWAYS run now
+    setLoading(false);
   }
-
   loadUsers();
 }, []);
+async function saveUsers(updatedUsers) {
+  setUsers(updatedUsers);
+
+  try {
+    await fetch("/api/users/set", {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json"
+      },
+      body: JSON.stringify({ users: updatedUsers })
+    });
+  } catch (err) {
+    console.error("Save error:", err);
+  }
+}
   // ⭐ Ensure Admin user exists
   useEffect(() => {
   if (loading) return;
@@ -518,7 +525,7 @@ useEffect(() => {
 
     const id = `${newUserName.trim().toLowerCase()}-${Date.now()}`;
 
-    setUsers((prev) => [
+    saveUsers((prev) => [
       ...prev,
       {
         id,
@@ -547,7 +554,7 @@ useEffect(() => {
       return;
     }
 
-    setUsers((prev) =>
+    saveUsers((prev) =>
       prev.map((u) =>
         u.id === editingUser.id
           ? { ...u, name: editUserName.trim(), passcode: editUserPasscode }
@@ -560,7 +567,7 @@ useEffect(() => {
 
   const deleteUser = (userId) => {
     if (!window.confirm("Delete this user and all their data?")) return;
-    setUsers((prev) => prev.filter((u) => u.id !== userId));
+    saveUsers((prev) => prev.filter((u) => u.id !== userId));
   };
 
   const handleClockIn = () => {
@@ -623,7 +630,7 @@ useEffect(() => {
           "Are you sure you want to delete ALL timeclock data for ALL users?"
         )
       ) {
-        setUsers((prev) =>
+        saveUsers((prev) =>
           prev.map((u) => ({
             ...u,
             entries: [],
@@ -1170,7 +1177,7 @@ useEffect(() => {
       return;
     }
 
-    setUsers((prev) =>
+    saveUsers((prev) =>
       prev.map((u) => {
         if (u.id !== userId) return u;
         const newEntries = [...u.entries];
@@ -1189,7 +1196,7 @@ useEffect(() => {
 
   const deletePunch = (userId, entryIndex) => {
     if (!window.confirm("Delete this punch?")) return;
-    setUsers((prev) =>
+    saveUsers((prev) =>
       prev.map((u) => {
         if (u.id !== userId) return u;
         const newEntries = [...u.entries];
@@ -1233,7 +1240,7 @@ useEffect(() => {
       return;
     }
 
-    setUsers((prev) =>
+    saveUsers((prev) =>
       prev.map((u) => {
         if (u.id !== userId) return u;
         return {
