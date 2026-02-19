@@ -1,3 +1,4 @@
+import { kv } from "@vercel/kv";
 import { useState, useEffect } from "react";
 
 const ADMIN_CODE = "124578"; // your real admin code here
@@ -345,42 +346,50 @@ const EditPunchesPage = ({
   );
 };
 function App() {
-  const [users, setUsers] = useState(() => {
-    const stored = localStorage.getItem("timeclock-users");
-    if (!stored) return [];
-    try {
-      const parsed = JSON.parse(stored);
-      return Array.isArray(parsed) ? parsed : [];
-    } catch {
-      return [];
+ const [users, setUsers] = useState([]);
+const [loading, setLoading] = useState(true);
+
+useEffect(() => {
+  async function loadUsers() {
+    const data = await kv.get("timeclock-users");
+    if (Array.isArray(data)) {
+      setUsers(data);
+    } else {
+      setUsers([]);
     }
-  });
+    setLoading(false);
+  }
+  loadUsers();
+}, []);
 
   // ⭐ Ensure Admin user exists
   useEffect(() => {
-    setUsers((prev) => {
-      const hasAdmin = prev.some((u) => u.id === "admin");
-      if (hasAdmin) return prev;
+  if (loading) return;
 
-      const adminUser = {
-        id: "admin",
-        name: "Admin",
-        passcode: ADMIN_CODE,
-        entries: [],
-        currentSessionStart: null
-      };
+  setUsers(prev => {
+    const hasAdmin = prev.some(u => u.id === "admin");
+    if (hasAdmin) return prev;
 
-      const updated = [...prev, adminUser];
-      localStorage.setItem("timeclock-users", JSON.stringify(updated));
-      return updated;
-    });
-  }, []);
+    const adminUser = {
+      id: "admin",
+      name: "Admin",
+      passcode: ADMIN_CODE,
+      entries: [],
+      currentSessionStart: null
+    };
+
+    const updated = [...prev, adminUser];
+    kv.set("timeclock-users", updated);
+    return updated;
+  });
+}, [loading]);
 
   const [currentUserId, setCurrentUserId] = useState(null);
   const [isAdmin, setIsAdmin] = useState(false);
   const [isAuthenticated, setIsAuthenticated] = useState(false);
   const [now, setNow] = useState(new Date());
   const [currentPage, setCurrentPage] = useState("dashboard");
+  const [loading, setLoading] = useState(true);
 
   const [rounding, setRounding] = useState(
     localStorage.getItem("rounding") || "1"
@@ -413,8 +422,10 @@ function App() {
   }, []);
 
   useEffect(() => {
-    localStorage.setItem("timeclock-users", JSON.stringify(users));
-  }, [users]);
+  if (!loading) {
+    kv.set("timeclock-users", users);
+  }
+}, [users, loading]);
 
   const getUserById = (id) => users.find((u) => u.id === id) || null;
 
@@ -1331,6 +1342,9 @@ function App() {
     );
   };
 
+  if (loading) {
+    return <div style={{ padding: "2rem" }}>Loading...</div>;
+  }
   if (!isAuthenticated) {
     return <LoginScreen users={users} onLogin={handleLogin} />;
   }
