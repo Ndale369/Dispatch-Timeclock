@@ -1,6 +1,6 @@
 import { useState, useEffect } from "react";
 
-const ADMIN_CODE = "124578";
+const ADMIN_CODE = "******";
 
 // helpers
 const formatLocalDateTime = (date) => {
@@ -350,9 +350,14 @@ const EditPunchesPage = ({
 
 function App() {
   const [users, setUsers] = useState(() => {
-    const saved = localStorage.getItem("timeclock-users");
-    if (saved) return JSON.parse(saved);
-    return [
+    useEffect(() => {
+  async function loadUsers() {
+    const res = await fetch('/api/users');
+    const data = await res.json();
+    setUsers(data);
+  }
+  loadUsers();
+},
       {
         id: "admin",
         name: "Admin",
@@ -360,8 +365,14 @@ function App() {
         entries: [],
         currentSessionStart: null
       }
-    ];
+});
+  async function saveUsersToCloud(updatedUsers) {
+  await fetch('/api/users', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(updatedUsers),
   });
+}
 
   const [currentUserId, setCurrentUserId] = useState(null);
   const [isAdmin, setIsAdmin] = useState(false);
