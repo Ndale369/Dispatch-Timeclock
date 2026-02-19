@@ -347,7 +347,7 @@ const EditPunchesPage = ({
 };
 function App() {
  const [users, setUsers] = useState([]);
-
+ const [loading, setLoading] = useState(true);
 useEffect(() => {
   async function loadUsers() {
     const data = await kv.get("timeclock-users");
@@ -388,7 +388,7 @@ useEffect(() => {
   const [isAuthenticated, setIsAuthenticated] = useState(false);
   const [now, setNow] = useState(new Date());
   const [currentPage, setCurrentPage] = useState("dashboard");
-  const [loading, setLoading] = useState(true);
+
 
   const [rounding, setRounding] = useState(
     localStorage.getItem("rounding") || "1"
