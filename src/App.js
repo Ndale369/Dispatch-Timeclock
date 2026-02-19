@@ -124,9 +124,6 @@ const LoginScreen = ({ users, onLogin }) => {
                 padding: "0.5rem"
               }}
             />
-            <div style={{ fontSize: "0.8rem", marginTop: "0.25rem" }}>
-              Admin override code: {ADMIN_CODE}
-            </div>
           </div>
 
           <button
@@ -349,15 +346,13 @@ const EditPunchesPage = ({
 };
 
 function App() {
-  const [users, setUsers] = useState(() => {
-    useEffect(() => {
-  async function loadUsers() {
-    const res = await fetch('/api/users');
-    const data = await res.json();
-    setUsers(data);
-  }
-  loadUsers();
-},
+  // --- USERS + ADMIN ---
+
+  const ensureAdminUser = (list) => {
+    const hasAdmin = list.some((u) => u.id === "admin");
+    if (hasAdmin) return list;
+    return [
+      ...list,
       {
         id: "admin",
         name: "Admin",
@@ -365,20 +360,20 @@ function App() {
         entries: [],
         currentSessionStart: null
       }
-});
-  async function saveUsersToCloud(updatedUsers) {
-  await fetch('/api/users', {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify(updatedUsers),
-  });
-}
+    ];
+  };
+
+  const [users, setUsers] = useState([]);
+
+  // --- AUTH / UI STATE ---
 
   const [currentUserId, setCurrentUserId] = useState(null);
   const [isAdmin, setIsAdmin] = useState(false);
   const [isAuthenticated, setIsAuthenticated] = useState(false);
   const [now, setNow] = useState(new Date());
   const [currentPage, setCurrentPage] = useState("dashboard");
+
+  // --- SETTINGS STATE ---
 
   const [rounding, setRounding] = useState(
     localStorage.getItem("rounding") || "1"
@@ -390,6 +385,8 @@ function App() {
     localStorage.getItem("breakReminder") === "true"
   );
 
+  // --- USER MODAL STATE ---
+
   const [showAddUser, setShowAddUser] = useState(false);
   const [newUserName, setNewUserName] = useState("");
   const [newUserPasscode, setNewUserPasscode] = useState("");
@@ -398,21 +395,69 @@ function App() {
   const [editUserName, setEditUserName] = useState("");
   const [editUserPasscode, setEditUserPasscode] = useState("");
 
+  // --- PUNCH EDIT STATE ---
+
   const [editingPunch, setEditingPunch] = useState(null);
   const [editPunchIn, setEditPunchIn] = useState("");
   const [editPunchOut, setEditPunchOut] = useState("");
   const [editPunchDuration, setEditPunchDuration] = useState("");
 
+  // --- CSV FILTER STATE ---
+
   const [csvUserFilter, setCsvUserFilter] = useState("all");
+
+  // --- CLOCK TICK ---
 
   useEffect(() => {
     const interval = setInterval(() => setNow(new Date()), 1000);
     return () => clearInterval(interval);
   }, []);
 
+  // --- LOAD USERS FROM KV ON STARTUP ---
+
   useEffect(() => {
-    localStorage.setItem("timeclock-users", JSON.stringify(users));
+    const loadUsers = async () => {
+      try {
+        const res = await fetch("/api/users");
+        if (!res.ok) {
+          console.error("Failed to load users from /api/users");
+          setUsers((prev) => ensureAdminUser(prev));
+          return;
+        }
+        const data = await res.json();
+        if (Array.isArray(data)) {
+          setUsers(ensureAdminUser(data));
+        } else {
+          setUsers((prev) => ensureAdminUser(prev));
+        }
+      } catch (err) {
+        console.error("Error loading users:", err);
+        setUsers((prev) => ensureAdminUser(prev));
+      }
+    };
+    loadUsers();
+  }, []);
+
+  // --- SAVE USERS TO KV WHENEVER THEY CHANGE ---
+
+  const saveUsersToCloud = async (updatedUsers) => {
+    try {
+      await fetch("/api/users", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(updatedUsers)
+      });
+    } catch (err) {
+      console.error("Error saving users:", err);
+    }
+  };
+
+  useEffect(() => {
+    if (!users || users.length === 0) return;
+    saveUsersToCloud(users);
   }, [users]);
+
+  // --- DERIVED HELPERS ---
 
   const getUserById = (id) => users.find((u) => u.id === id) || null;
 
@@ -442,9 +487,7 @@ function App() {
     user.entries
       .filter(
         (e) =>
-          e.raw &&
-          new Date(e.raw) >= weekStart &&
-          e.durationMinutes
+          e.raw && new Date(e.raw) >= weekStart && e.durationMinutes
       )
       .reduce((sum, e) => sum + e.durationMinutes, 0);
 
@@ -457,6 +500,8 @@ function App() {
     (sum, u) => sum + weeklyMinutesForUser(u),
     0
   );
+
+  // --- AUTH LOGIC ---
 
   const handleLogin = (selectedUserId, passcode) => {
     if (passcode === ADMIN_CODE) {
@@ -489,6 +534,8 @@ function App() {
     setCurrentUserId(null);
     setCurrentPage("dashboard");
   };
+
+  // --- USER MANAGEMENT ---
 
   const handleAddUser = () => {
     if (!newUserName.trim() || newUserPasscode.length !== 4) {
@@ -543,6 +590,8 @@ function App() {
     setUsers((prev) => prev.filter((u) => u.id !== userId));
   };
 
+  // --- CLOCKING ---
+
   const handleClockIn = () => {
     if (!currentUserId) return;
     const user = getUserById(currentUserId);
@@ -588,6 +637,8 @@ function App() {
       ]
     }));
   };
+
+  // --- SETTINGS PAGE ---
 
   const SettingsPage = () => {
     const saveSettings = () => {
@@ -701,6 +752,8 @@ function App() {
     );
   };
 
+  // --- HISTORY PAGE ---
+
   const HistoryPage = () => {
     const visibleEntries = isAdmin
       ? allEntries
@@ -781,6 +834,8 @@ function App() {
       </div>
     );
   };
+
+  // --- DASHBOARD PAGE ---
 
   const DashboardPage = () => {
     const user = currentUserId ? getUserById(currentUserId) : null;
@@ -923,6 +978,8 @@ function App() {
     );
   };
 
+  // --- USERS PAGE ---
+
   const UsersPage = () => {
     const sortedUsers = [...users].sort((a, b) => a.name.localeCompare(b.name));
 
@@ -1025,6 +1082,8 @@ function App() {
     );
   };
 
+  // --- ACTIVE SESSIONS PAGE ---
+
   const ActiveSessionsPage = () => {
     const activeUsers = users.filter((u) => u.currentSessionStart);
 
@@ -1107,6 +1166,8 @@ function App() {
       </div>
     );
   };
+
+  // --- PUNCH EDIT HELPERS ---
 
   const openEditPunch = (entry, userId, entryIndex) => {
     setEditingPunch({ userId, entryIndex });
@@ -1234,6 +1295,8 @@ function App() {
     );
   };
 
+  // --- CSV EXPORT ---
+
   const generateWeeklyCsv = () => {
     const rows = [];
     rows.push(["User", "Date", "Clock In", "Clock Out", "Duration (min)"]);
@@ -1331,11 +1394,15 @@ function App() {
     );
   };
 
+  // --- AUTH GATE ---
+
   if (!isAuthenticated) {
     return <LoginScreen users={users} onLogin={handleLogin} />;
   }
 
   const currentUser = currentUserId ? getUserById(currentUserId) : null;
+
+  // --- MAIN LAYOUT ---
 
   return (
     <div style={{ display: "flex", height: "100vh", fontFamily: "Arial" }}>
