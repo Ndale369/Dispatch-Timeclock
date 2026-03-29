@@ -351,14 +351,23 @@ function App() {
  const [loading, setLoading] = useState(true);
 useEffect(() => {
   async function loadUsers() {
-    const data = await kv.get("timeclock-users");
-    if (Array.isArray(data)) {
-      setUsers(data);
-    } else {
+    try {
+      const res = await fetch("/api/users/get");
+      const data = await res.json();
+
+      if (Array.isArray(data)) {
+        setUsers(data);
+      } else {
+        setUsers([]);
+      }
+    } catch (err) {
+      console.error("Failed to load users:", err);
       setUsers([]);
     }
+
     setLoading(false);
   }
+
   loadUsers();
 }, []);
 async function saveUsers(updatedUsers) {
@@ -434,12 +443,6 @@ async function saveUsers(updatedUsers) {
     const interval = setInterval(() => setNow(new Date()), 1000);
     return () => clearInterval(interval);
   }, []);
-
-  useEffect(() => {
-  if (!loading) {
-    kv.set("timeclock-users", users);
-  }
-}, [users, loading]);
 
   const getUserById = (id) => users.find((u) => u.id === id) || null;
 
